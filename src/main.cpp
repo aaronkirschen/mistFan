@@ -5,7 +5,6 @@
 
 namespace settings
 {
-  constexpr bool debug = false;
 
   namespace serial
   {
@@ -14,12 +13,14 @@ namespace settings
 
   namespace pins
   {
+    // constexpr int fanSpeed = 3;     // fan speed pwm - not using this since it would
+    // not stop the fan completely for some reason
     constexpr int fan = 5;          // fan power mosfet switch/pwm - using this as
-                                    // speed control, however it is only on above ~70% duty
+                                    // speed control instead, only on above ~70% duty
     constexpr int mistSwitch = 7;   // mist solenoid power mosfet
     constexpr int buttonOne = 9;    // pushbutton closest to the connector
     constexpr int buttonTwo = 11;   // pushbutton in middle
-    constexpr int buttonThree = 12; // pushbutton farthest from the connector
+    constexpr int buttonThree = 12; // pushbutton farthest from the connectorFF
   }
 
   namespace delays
@@ -84,12 +85,13 @@ uint32_t calculateDutyFromPercent(int percent)
 
 void setPwmPercent(uint32_t pwmChannel, int percent)
 {
-  if (settings::debug) Serial.printf("Channel %d PWM %d\n", pwmChannel, percent);
+  Serial.printf("Channel %d PWM %d\n", pwmChannel, percent);
   ledcWrite(pwmChannel, calculateDutyFromPercent(percent));
 }
 
 void setFanSpeedPercent(int percent)
 {
+  // setPwmPercent( pwmChannelFanSpeed, percent);
   setPwmPercent(settings::pwm::channel::fan, percent);
 }
 
@@ -104,42 +106,42 @@ void writeMistState(bool state = currentValue.mistState)
 
 void mistOn()
 {
-  if (settings::debug) Serial.println("Turning mist ON");
+  Serial.println("Turning mist ON");
   writeMistState(1);
 }
 
 void cancelMistForDurationRepeatingTask()
 {
-  if (settings::debug) Serial.println("Repeating mist task CANCELLED");
+  Serial.println("Repeating mist task CANCELLED");
   timer.cancel(mistForDurationRepeatingTask);
 }
 
 bool mistOnFromTimer(void *)
 {
   mistOn();
-  return true; 
+  return true; // keep timer active? true
 }
 
 void mistOff()
 {
-  if (settings::debug) Serial.println("Turning mist OFF");
+  Serial.println("Turning mist OFF");
   writeMistState(0);
 }
 bool mistOffFromTimer(void *)
 {
   mistOff();
-  return true; 
+  return true; // keep timer active? true
 }
 
 void toggleMistState()
 {
-  if (settings::debug) Serial.println("Toggling mist pin state");
+  Serial.println("Toggling mist pin state");
   writeMistState(!currentValue.mistState);
 }
 
 void mistForDuration(size_t duration)
 {
-  if (settings::debug) Serial.printf("Turning mist ON for %d seconds\n", (duration / 1000));
+  Serial.printf("Turning mist ON for %d seconds\n", (duration / 1000));
   mistOn();
   timer.in(duration, mistOffFromTimer); //(delay, function_to_call)
 }
@@ -148,21 +150,21 @@ bool mistForDurationFromTimer(void *opaque)
 {
   if (buttonOne.isLongPressed())
   {
-    if (settings::debug) Serial.println("mistForDurationFromTimer:  ");
-    if (settings::debug) Serial.println("  Task triggered, but currently misting while button is held,");
-    if (settings::debug) Serial.println("  so this task will be skipped");
+    Serial.println("mistForDurationFromTimer:  ");
+    Serial.println("  Task triggered, but currently misting while button is held,");
+    Serial.println("  so this task will be skipped");
   }
   else
   {
     size_t duration = (size_t)opaque;
     mistForDuration(duration);
   }
-  return true; 
+  return true; // keep timer active? true
 }
 
 void mistForDurationRepeating(size_t onDuration, size_t offDuration)
 {
-  if (settings::debug) Serial.printf(
+  Serial.printf(
       "Starting mist on/off repeating timer; on for %d seconds, off for %d "
       "seconds.",
       (onDuration / 1000), (offDuration / 1000));
@@ -175,34 +177,34 @@ void mistForDurationRepeating(size_t onDuration, size_t offDuration)
 
 void fanOn()
 {
-  if (settings::debug) Serial.println("Turning fan ON");
+  Serial.println("Turning fan ON");
   setPwmPercent(settings::pwm::channel::fan, 100);
 }
 
 void fanOff()
 {
-  if (settings::debug) Serial.println("Turning fan OFF");
+  Serial.println("Turning fan OFF");
   setPwmPercent(settings::pwm::channel::fan, 0);
 }
 
 void cancelAllTimerTasks()
 {
-  if (settings::debug) Serial.printf("Cancelling ALL running timer tasks!\n");
+  Serial.printf("Cancelling ALL running timer tasks!\n");
   timer.cancel();
 }
 
 void cancelAllTimerTasksAndTurnOffMistAndFan()
 {
-  cancelAllTimerTasks();
+  cancelAllTimerTasks(); // cancel all tasks
   mistOff();
   fanOff();
 }
 
 void implementTimeout()
 {
-  if (settings::debug) Serial.println("Timeout timer task has executed, doing timeout task now...");
+  Serial.println("Timeout timer task has executed, doing timeout task now...");
   cancelAllTimerTasksAndTurnOffMistAndFan();
-  // go to sleep? need to add (deep)sleep mode.
+  // go to sleep?implementTimeout
 }
 
 bool implementTimeoutFromTimer(void *)
@@ -213,8 +215,8 @@ bool implementTimeoutFromTimer(void *)
 
 void createTimeoutTimer()
 {
-  if (settings::debug) Serial.print("Timeout timer (re)set, timeout in (ms): ");
-  if (settings::debug) Serial.println(settings::delays::timeout);
+  Serial.print("Timeout timet (re)set, timeout in (ms): ");
+  Serial.println(settings::delays::timeout);
   timeoutTimerTask = timer.in(settings::delays::timeout, implementTimeoutFromTimer);
 }
 
@@ -229,7 +231,7 @@ void resetTimeoutTimer()
 void clickOne()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 1 click.");
+  Serial.println("Button 1 click.");
   mistForDuration(1000);
 }
 
@@ -238,7 +240,7 @@ void clickOne()
 void doubleclickOne()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 1 doubleclick.");
+  Serial.println("Button 1 doubleclick.");
   // mist for 1 second every 30 seconds
   mistForDurationRepeating(1000, 30000);
 }
@@ -248,7 +250,7 @@ void doubleclickOne()
 void longPressStartOne()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 1 longPress start");
+  Serial.println("Button 1 longPress start");
 }
 
 // This function will be called often, while the button1 is pressed for a long
@@ -256,7 +258,7 @@ void longPressStartOne()
 void longPressOne()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 1 longPress...");
+  Serial.println("Button 1 longPress...");
   mistOn();
 }
 
@@ -265,7 +267,7 @@ void longPressOne()
 void longPressStopOne()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 1 longPress stop");
+  Serial.println("Button 1 longPress stop");
   mistOff();
 }
 
@@ -275,17 +277,20 @@ void multiClickOne()
 {
   resetTimeoutTimer();
   int n = buttonOne.getNumberClicks();
-  if (settings::debug) Serial.printf("multiclick detected, n=%d. \n", n);
+  Serial.printf("multiclick detected, n=%d. \n", n);
   if (n == 3)
   {
+    // mist for 1 second every 15 seconds
     mistForDurationRepeating(1000, 15000);
   }
   else if (n == 4)
   {
+    // mist for 3 second every 30 seconds
     mistForDurationRepeating(3000, 30000);
   }
   else if (n == 5)
   {
+    // mist for 3 second every 15 seconds
     mistForDurationRepeating(3000, 15000);
   }
   else
@@ -296,33 +301,33 @@ void multiClickOne()
 void clickTwo()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 2 click.");
+  Serial.println("Button 2 click.");
   fanOn();
 }
 
 void doubleclickTwo()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 2 doubleclick.");
+  Serial.println("Button 2 doubleclick.");
   fanOff();
 }
 
 void longPressStartTwo()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 2 longPress start");
+  Serial.println("Button 2 longPress start");
 }
 
 void longPressTwo()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 2 longPress...");
+  Serial.println("Button 2 longPress...");
 }
 
 void longPressStopTwo()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 2 longPress stop");
+  Serial.println("Button 2 longPress stop");
 }
 
 void multiClickTwo()
@@ -331,50 +336,50 @@ void multiClickTwo()
   int n = buttonTwo.getNumberClicks();
   if (n == 3)
   {
-    if (settings::debug) Serial.println("tripleClick detected.");
+    Serial.println("tripleClick detected.");
   }
   else if (n == 4)
   {
-    if (settings::debug) Serial.println("quadrupleClick detected.");
+    Serial.println("quadrupleClick detected.");
   }
   else
   {
-    if (settings::debug) Serial.print("multiClick(");
-    if (settings::debug) Serial.print(n);
-    if (settings::debug) Serial.println(") detected.");
+    Serial.print("multiClick(");
+    Serial.print(n);
+    Serial.println(") detected.");
   }
 }
 
 void clickThree()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 3 click.");
+  Serial.println("Button 3 click.");
   cancelMistForDurationRepeatingTask();
 }
 
 void doubleclickThree()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 3 doubleclick.");
+  Serial.println("Button 3 doubleclick.");
   cancelAllTimerTasksAndTurnOffMistAndFan();
 }
 
 void longPressStartThree()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 3 longPress start");
+  Serial.println("Button 3 longPress start");
 }
 
 void longPressThree()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 3 longPress...");
+  Serial.println("Button 3 longPress...");
 }
 
 void longPressStopThree()
 {
   resetTimeoutTimer();
-  if (settings::debug) Serial.println("Button 3 longPress stop");
+  Serial.println("Button 3 longPress stop");
 }
 
 void multiClickThree()
@@ -383,17 +388,17 @@ void multiClickThree()
   int n = buttonThree.getNumberClicks();
   if (n == 3)
   {
-    if (settings::debug) Serial.println("tripleClick detected.");
+    Serial.println("tripleClick detected.");
   }
   else if (n == 4)
   {
-    if (settings::debug) Serial.println("quadrupleClick detected.");
+    Serial.println("quadrupleClick detected.");
   }
   else
   {
-    if (settings::debug) Serial.print("multiClick(");
-    if (settings::debug) Serial.print(n);
-    if (settings::debug) Serial.println(") detected.");
+    Serial.print("multiClick(");
+    Serial.print(n);
+    Serial.println(") detected.");
   }
 }
 
@@ -412,7 +417,7 @@ bool buttonTickFromTimer(void *)
 
 void buttonSetup()
 {
-  if (settings::debug) Serial.println("Setting up buttons...");
+  Serial.println("Setting up buttons...");
   buttonOne.attachClick(clickOne);
   buttonOne.attachDoubleClick(doubleclickOne);
   buttonOne.attachLongPressStart(longPressStartOne);
@@ -435,14 +440,15 @@ void buttonSetup()
   buttonThree.attachMultiClick(multiClickThree);
 
   timer.every(0, buttonTickFromTimer);
-  if (settings::debug) Serial.println("Buttons setup successfully");
+  Serial.println("Buttons setup successfully");
 }
 
+// setup code here, to run once:
 void setup()
 {
-  if (settings::debug) Serial.begin(115200);
+  Serial.begin(115200);
 
-  if (settings::debug) Serial.println("Starting setup...");
+  Serial.println("Starting setup...");
   createTimeoutTimer();
 
   pinMode(settings::pins::mistSwitch, OUTPUT);
@@ -450,11 +456,12 @@ void setup()
   ledcSetup(settings::pwm::channel::fan, settings::pwm::frequency, settings::pwm::precision);
   ledcAttachPin(settings::pins::fan, settings::pwm::channel::fan);
 
-  if (settings::debug) Serial.println("Setting up buttons...");
+  Serial.println("Setting up buttons...");
   buttonSetup();
-  if (settings::debug) Serial.println("Completed setup...");
+  Serial.println("Completed setup...");
 
   fanOn();
+  // mistForDurationRepeating(1000, 45000);
 }
 
 void loop()
